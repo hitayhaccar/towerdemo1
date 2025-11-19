@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>JELLY TOWERS FINAL (FIXED)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            /* DÜZELTME 1: Global touch action yerine sadece oyunda kapatacağız */
+            user-select: none; -webkit-user-select: none;
+        }
+
+        body {
+            margin: 0; padding: 0; 
+            width: 100vw; height: 100vh;
+            background: linear-gradient(180deg, #141e30 0%, #243b55 100%);
+            font-family: 'Fredoka One', cursive; 
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            color: white;
+        }
+
+        .screen { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 10; transition: opacity 0.3s; 
+            display: flex; flex-direction: column; 
+            align-items: center; justify-content: center;
+            background: transparent;
+        }
+
+        /* --- HARİTA EKRANI (DÜZELTME: Scroll için ayarlar) --- */
+        #level-map-screen {
+            background: #1e3c72; 
+            overflow-y: auto !important; /* Scroll açık */
+            -webkit-overflow-scrolling: touch; 
+            touch-action: pan-y !important; /* Dikey kaydırmaya izin ver */
+            display: none; 
+            align-items: flex-start; 
+            z-index: 15;
+        }
+        
+        #map-content {
+            position: relative; width: 100%; height: 550vh; 
+            padding-bottom: 150px;
+        }
+
+        #map-lines {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; pointer-events: none;
+        }
+
+        .level-node {
+            position: absolute; width: 60px; height: 60px;
+            background: #fff; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; color: #333; border: 4px solid #ccc;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+            transform: translateX(-50%); z-index: 5; cursor: pointer;
+        }
+        .level-node.locked { background: #555; color: #777; border-color: #444; box-shadow: none; }
+        .level-node.completed { background: #2ecc71; color: #fff; border-color: #27ae60; }
+        .level-node.unlocked { background: #3498db; color: #fff; border-color: #2980b9; animation: pulse 1.5s infinite; }
+
+        .map-header-fixed {
+            position: fixed; top: 0; left: 0; width: 100%;
+            background: rgba(20, 30, 48, 0.9); backdrop-filter: blur(5px);
+            text-align: center; padding: 15px 0; z-index: 20;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .fixed-back-btn {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 200px; z-index: 100; background: #e74c3c; color: white; box-shadow: 0 5px 0 #c0392b;
+        }
+
+        /* --- OYUN ALANI --- */
+        #game-wrapper { display: none; width: 100%; height: 100%; touch-action: none; /* Sadece oyun alanı kilitli */ }
+        
+        #game-container {
+            position: relative; width: 100%; height: 100%; 
+            background-color: rgba(0, 0, 0, 0.2);
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .game-ui-top {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            display: flex; justify-content: space-between; pointer-events: none; z-index: 20;
+        }
+        .info-tag {
+            background: rgba(0,0,0,0.5); color: #fff; padding: 5px 10px;
+            border-radius: 10px; font-size: 14px; margin-right: 5px;
+            display: inline-block;
+        }
+        
+        .score-display {
+            position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+            font-size: 40px; text-shadow: 0 4px 0 rgba(0,0,0,0.3); pointer-events: none; z-index: 20;
+        }
+
+        #pause-btn {
+            pointer-events: auto; width: 40px; height: 40px; 
+            background: white; color: #333; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; cursor: pointer; box-shadow: 0 4px 0 #ccc;
+        }
+
+        #drag-hint {
+            position: absolute; bottom: 20%; width: 100%; text-align: center;
+            font-size: 18px; opacity: 0.7; pointer-events: none;
+            animation: fadeOut 3s forwards;
+        }
+
+        /* --- ANA MENU & MODALLAR --- */
+        .mascot-container {
+            width: 140px; height: 140px; margin-bottom: 20px;
+            animation: bounce 2s infinite;
+        }
+        .mascot-body {
+            width: 100%; height: 100%; background: #FF6B6B;
+            border-radius: 40% 40% 15% 15%;
+            border: 5px solid rgba(255,255,255,0.2);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        /* Mascot Eyes */
+        .mascot-body::before {
+            content: ''; position: absolute; top: 35px; left: 35px; 
+            width: 12px; height: 12px; background: #333; border-radius: 50%;
+            box-shadow: 60px 0 0 #333; 
+        }
+        .mascot-body::after {
+            content: ''; position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%);
+            width: 30px; height: 15px; border-bottom: 5px solid #333; border-radius: 50%;
+        }
+
+        h1.game-title {
+            font-size: 48px; margin: 10px 0 40px 0; text-align: center;
+            text-shadow: 0 5px 0 #000, 0 0 20px rgba(255,255,255,0.2);
+            letter-spacing: 2px;
+        }
+
+        .menu-buttons-row {
+            display: flex; flex-direction: row; gap: 15px;
+            justify-content: center; width: 90%; max-width: 500px;
+        }
+
+        .menu-btn {
+            background: #fff; color: #333; 
+            font-family: 'Fredoka One', cursive; font-size: 18px;
+            padding: 15px 10px; border: none; border-radius: 20px; cursor: pointer;
+            box-shadow: 0 5px 0 #999; flex: 1; 
+            transition: transform 0.1s;
+            white-space: nowrap;
+        }
+        .menu-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #999; }
+        .menu-btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; transform: none; }
+        
+        .btn-start { background: #2ecc71; color: white; box-shadow: 0 5px 0 #27ae60; }
+        .btn-continue { background: #f1c40f; color: white; box-shadow: 0 5px 0 #f39c12; }
+        .btn-records { background: #9b59b6; color: white; box-shadow: 0 5px 0 #8e44ad; }
+
+        #lang-btn {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(255,255,255,0.2); color: white;
+            border: 2px solid rgba(255,255,255,0.5); border-radius: 12px;
+            padding: 8px 15px; font-family: 'Fredoka One'; cursor: pointer;
+        }
+
+        /* --- OVERLAYS --- */
+        .overlay {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(4px);
+            z-index: 50; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .modal {
+            background: #fff; width: 85%; max-width: 350px; border-radius: 20px;
+            padding: 25px; text-align: center; color: #333;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .modal h2 { margin-top: 0; font-size: 32px; }
+        
+        .overlay-btn {
+            width: 100%; padding: 15px; margin-top: 10px; border: none;
+            border-radius: 50px; font-family: 'Fredoka One'; font-size: 20px;
+            color: white; cursor: pointer; box-shadow: 0 5px 0 rgba(0,0,0,0.2);
+        }
+        .overlay-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,0.2); }
+        .btn-red { background: #e74c3c; box-shadow: 0 5px 0 #c0392b; }
+
+        .gold-bubble { 
+            position: fixed; top: 70px; right: 20px; width: 80px; height: 80px; 
+            background: radial-gradient(circle at 30% 30%, #FFD700, #FDB931); 
+            border-radius: 50%; border: 4px solid #fff; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            color: #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.2); z-index: 90; 
+            cursor: pointer; transition: transform 0.1s;
+        }
+        .gold-bubble:active { transform: scale(0.95); }
+
+        .shop-item { background: #f4f4f4; margin: 10px 0; padding: 10px; border-radius: 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
+        .shop-btn { padding: 8px 15px; font-size: 14px; border-radius: 20px; background: #2ecc71; color: white; border: none; font-family: 'Fredoka One'; cursor: pointer; }
+        .shop-btn:disabled { background: #ccc; cursor: default; }
+
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+        @keyframes pulse { 0% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.1); } 100% { transform: translateX(-50%) scale(1); } }
+        @keyframes fadeOut { 0% {opacity:1;} 80% {opacity:1;} 100% {opacity:0;} }
+
+        /* Alert */
+        #mode-alert { display: none; position: absolute; top: 20%; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.95); color: #e74c3c; padding: 10px 30px; border-radius: 30px; font-size: 22px; border: 3px solid #e74c3c; z-index: 40; white-space: nowrap; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+
+        .score-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; font-size: 16px; }
+
+    </style>
+</head>
+<body>
+
+    <div id="main-menu" class="screen">
+        <button id="lang-btn" onclick="toggleLanguage()">TR</button>
+
+        <div class="mascot-container">
+            <div class="mascot-body"></div>
+        </div>
+
+        <h1 class="game-title" id="title-text">JOLE KULELER</h1>
+        
+        <div class="menu-buttons-row">
+            <button class="menu-btn btn-start" id="btn-start" onclick="openLevelMap()">BASLA</button>
+            <button class="menu-btn btn-continue" id="btn-continue" onclick="continueLastLevel()">DEVAM</button>
+        </div>
+        <div class="menu-buttons-row" style="margin-top: 10px;">
+             <button class="menu-btn btn-records" id="btn-records" onclick="showRecords()">REKORLAR</button>
+        </div>
+    </div>
+
+    <div id="level-map-screen" class="screen">
+        <div class="map-header-fixed"><h2 style="margin:0; color:white;" id="map-title">BOLUMLER</h2></div>
+        
+        <div class="gold-bubble" onclick="openShop()">
+            <span id="shop-label" style="font-size: 10px; opacity: 0.9;">MARKET</span>
+            <span style="font-size: 18px;">🪙</span>
+            <span id="total-gold-display" style="font-size: 14px; font-weight: bold; margin-top: -2px;">0</span>
+        </div>
+
+        <div id="map-content">
+            <svg id="map-lines"></svg>
+        </div>
+
+        <button class="menu-btn fixed-back-btn" id="btn-back-menu" onclick="showMainMenu()">GERI</button>
+    </div>
+
+    <div id="game-wrapper" class="screen">
+        <div id="game-container">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div class="game-ui-top">
+                <div>
+                    <div class="info-tag"><span id="ui-level">Bolum:</span> <span id="levelDisplay">1</span></div>
+                    <div class="info-tag"><span id="ui-target">Hedef:</span> <span id="targetDisplay">100</span></div>
+                </div>
+                <div id="pause-btn" onclick="togglePause()">II</div>
+            </div>
+            
+            <div class="score-display"><span id="score">0</span></div>
+            <div id="mode-alert">MODE ALERT</div>
+            <div id="drag-hint">↔️ SURUKLE ↔️</div>
+        </div>
+    </div>
+
+    <div id="shop-modal" class="overlay">
+        <div class="modal">
+            <h2 id="shop-header">MARKET</h2>
+            <p><span id="balance-label">Bakiye:</span> <span id="shop-balance" style="color:#f39c12; font-weight:bold;">0</span></p>
+            
+            <div class="shop-item">
+                <div style="text-align:left;">
+                    <span class="shop-item-title" id="ad-item-title">📺 Izle</span>
+                    <span class="shop-item-price" style="color:#3498db;" id="ad-item-price">50 Altin</span>
+                </div>
+                <button class="shop-btn" id="btn-watch-ad" onclick="watchAd()">IZLE</button>
+            </div>
+            <div class="shop-item">
+                <div style="text-align:left;">
+                    <span class="shop-item-title" id="skip-item-title">⏩ Gec</span>
+                    <span class="shop-item-price">50 Altin</span>
+                </div>
+                <button class="shop-btn" id="btn-buy-skip" onclick="buySkipLevel()">AL</button>
+            </div>
+            <div class="shop-item">
+                <div style="text-align:left;">
+                    <span class="shop-item-title" id="color-item-title">🎨 Renkler</span>
+                    <span class="shop-item-price">50 Altin</span>
+                </div>
+                <button class="shop-btn" id="btn-buy-color" onclick="buyNewColors()">AL</button>
+            </div>
+
+            <div id="shop-message" style="height: 20px; color: #2ecc71; font-size: 12px; font-weight: bold; margin: 5px 0;"></div>
+            <button class="overlay-btn btn-red" id="btn-close-shop" onclick="closeShop()">KAPAT</button>
+        </div>
+    </div>
+
+    <div id="ad-overlay" class="overlay" style="background:#000; z-index:300;">
+        <h1 id="ad-title" style="color:#f1c40f;">REKLAM</h1>
+        <p style="color:#aaa;">(Video...)</p>
+        <div id="ad-timer" style="color:#fff; font-size:40px; margin-top:20px;">3</div>
+    </div>
+
+    <div id="game-over-screen" class="overlay">
+        <div class="modal">
+            <h2 style="color:#e74c3c;" id="fail-title">KAYBETTIN!</h2>
+            <p><span id="ui-score-label">Puan:</span> <span id="fail-score">0</span></p>
+            <button class="overlay-btn btn-start" id="btn-retry" onclick="restartLevel()">TEKRAR</button>
+            <button class="overlay-btn btn-records" id="btn-menu" onclick="showMainMenu()">MENU</button>
+        </div>
+    </div>
+
+    <div id="victory-screen" class="overlay">
+        <div class="modal">
+            <h2 style="color:#2ecc71;" id="win-title">ZAFER!</h2>
+            <p><span id="ui-score-win-label">Puan:</span> <span id="win-score">0</span></p>
+            <p>🪙 +<span id="win-gold">0</span></p>
+            <button class="overlay-btn btn-start" id="btn-next" onclick="nextLevel()">SONRAKI</button>
+            <button class="overlay-btn btn-continue" id="btn-map" onclick="openLevelMap()">HARITA</button>
+        </div>
+    </div>
+
+    <div id="pause-screen" class="overlay">
+        <div class="modal">
+            <h2 id="pause-title">DURAKLATILDI</h2>
+            <button class="overlay-btn btn-start" id="btn-resume" onclick="togglePause()">DEVAM ET</button>
+            <button class="overlay-btn btn-records" id="btn-quit" onclick="showMainMenu()">CIKIS</button>
+        </div>
+    </div>
+
+    <div id="records-modal" class="overlay">
+        <div class="modal">
+            <h2 id="records-title">REKORLAR</h2>
+            <div id="records-list" style="max-height:200px; overflow-y:auto; text-align:left; margin-bottom:15px;"></div>
+            <button class="overlay-btn btn-records" id="btn-close-rec" onclick="hideRecords()">KAPAT</button>
+        </div>
+    </div>
+
+    <script>
+        // --- KONFIGURASYON ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const V_WIDTH = 400;
+        const V_HEIGHT = 650;
+
+        let level = 1;
+        let maxUnlockedLevel = 1;
+        let score = 0;
+        let targetScore = 100;
+        let dropSpeed = 4.0;
+        
+        let tower = [];
+        let activeBlock = null;
+        let gameLoopId;
+        let isPaused = false;
+        let isGameOver = false;
+        let isCollapsing = false;
+
+        // Modlar
+        let isWitcherMode = false;
+        let currentWitcherChance = 0;
+        let currentWitcherSpeedMult = 1;
+        let isWindyMode = false;
+        let currentWindForce = 0;
+        let isMovingTowerMode = false;
+        let currentTowerSpeed = 0;
+        let towerDirection = 1;
+        let isGhostMode = false;
+        let currentGhostFreq = 200;
+
+        let isDragging = false;
+        let dragStartX = 0;
+        let blockStartX = 0;
+
+        let totalGold = 0;
+        let activePaletteIndex = 0;
+
+        const PALETTES = [
+            ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA'], 
+            ['#e74c3c', '#8e44ad', '#3498db', '#2ecc71', '#f1c40f', '#e67e22'], 
+            ['#2c3e50', '#e74c3c', '#ecf0f1', '#3498db', '#2980b9', '#bdc3c7'], 
+            ['#F94144', '#F3722C', '#F8961E', '#F9C74F', '#90BE6D', '#43AA8B']
+        ];
+
+        const LEVEL_POSITIONS = [];
+        for(let i=1; i<=50; i++) {
+            let y = 96 - ((i-1) * 1.8);
+            let x = 50 + 30 * Math.sin(i * 0.7); 
+            LEVEL_POSITIONS.push({x, y});
+        }
+
+        const translations = {
+            tr: {
+                title: "JOLE KULELER", start: "BASLA", continue: "DEVAM", records: "REKOR", map: "BOLUMLER",
+                back: "GERI", lvl: "Bolum:", tgt: "Hedef:", score: "Puan:", fail: "KAYBETTIN!",
+                retry: "TEKRAR", menu: "MENU", win: "ZAFER!", next: "SONRAKI", mapBtn: "HARITA",
+                pause: "DURAKLATILDI", resume: "DEVAM ET", quit: "CIKIS", drag: "↔️ SURUKLE ↔️",
+                close: "KAPAT", recTitle: "REKORLAR", noRec: "Kayit Yok", shop: "MARKET", shopHeader: "MARKET",
+                balance: "Bakiye:", watchAd: "📺 Izle", freeCoins: "50 Altin",
+                skipLevel: "⏩ Gec", changeColor: "🎨 Renkler", buy: "AL", max: "SON",
+                shopMsgAd: "Sagol! +50", shopMsgSkip: "Gecildi!", shopMsgColor: "Degisti!",
+                shopMsgPoor: "Yetersiz!", adTitle: "REKLAM", witcherDrop: "⬇️ BOSLUGA! ⬇️",
+                modeWitcher: "⚠️ DIKENLER!", modeWind: "💨 RUZGAR!", modeTower: "🏚️ HAREKET!", modeGhost: "👻 HAYALET!"
+            },
+            en: {
+                title: "JELLY TOWERS", start: "START", continue: "CONTINUE", records: "RECORDS", map: "LEVELS",
+                back: "BACK", lvl: "Level:", tgt: "Target:", score: "Score:", fail: "FAILED!",
+                retry: "RETRY", menu: "MENU", win: "VICTORY!", next: "NEXT", mapBtn: "MAP",
+                pause: "PAUSED", resume: "RESUME", quit: "QUIT", drag: "↔️ DRAG ↔️",
+                close: "CLOSE", recTitle: "RECORDS", noRec: "No Records", shop: "SHOP", shopHeader: "SHOP",
+                balance: "Balance:", watchAd: "📺 Watch", freeCoins: "Free 50",
+                skipLevel: "⏩ Skip", changeColor: "🎨 Colors", buy: "BUY", max: "MAX",
+                shopMsgAd: "Thanks! +50", shopMsgSkip: "Skipped!", shopMsgColor: "Changed!",
+                shopMsgPoor: "No Gold!", adTitle: "ADVERTISEMENT", witcherDrop: "⬇️ AVOID! ⬇️",
+                modeWitcher: "⚠️ SPIKES!", modeWind: "💨 WINDY!", modeTower: "🏚️ MOVING!", modeGhost: "👻 GHOST!"
+            }
+        };
+        let currentLang = 'tr';
+
+        // --- BAŞLANGIÇ ---
+        window.onload = function() {
+            resizeCanvas();
+            loadProgress();
+            updateTexts();
+            showMainMenu();
+        };
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            if(container) {
+                canvas.width = container.clientWidth;
+                canvas.height = container.clientHeight;
+            }
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'tr' ? 'en' : 'tr';
+            document.getElementById('lang-btn').innerText = currentLang === 'tr' ? 'TR' : 'EN';
+            updateTexts();
+        }
+
+        function updateTexts() {
+            const t = translations[currentLang];
+            document.getElementById('title-text').innerText = t.title;
+            document.getElementById('btn-start').innerText = t.start;
+            document.getElementById('btn-continue').innerText = t.continue;
+            document.getElementById('btn-records').innerText = t.records;
+            document.getElementById('map-title').innerText = t.map;
+            document.getElementById('btn-back-menu').innerText = t.back;
+            document.getElementById('ui-level').innerText = t.lvl;
+            document.getElementById('ui-target').innerText = t.tgt;
+            document.getElementById('fail-title').innerText = t.fail;
+            document.getElementById('ui-score-label').innerText = t.score;
+            document.getElementById('btn-retry').innerText = t.retry;
+            document.getElementById('btn-menu').innerText = t.menu;
+            document.getElementById('win-title').innerText = t.win;
+            document.getElementById('ui-score-win-label').innerText = t.score;
+            document.getElementById('btn-next').innerText = t.next;
+            document.getElementById('btn-map').innerText = t.mapBtn;
+            document.getElementById('pause-title').innerText = t.pause;
+            document.getElementById('btn-resume').innerText = t.resume;
+            document.getElementById('btn-quit').innerText = t.quit;
+            document.getElementById('drag-hint').innerText = t.drag;
+            document.getElementById('records-title').innerText = t.recTitle;
+            document.getElementById('btn-close-rec').innerText = t.close;
+            document.getElementById('shop-header').innerText = t.shopHeader;
+            document.getElementById('balance-label').innerText = t.balance;
+            document.getElementById('ad-item-title').innerText = t.watchAd;
+            document.getElementById('ad-item-price').innerText = t.freeCoins;
+            document.getElementById('skip-item-title').innerText = t.skipLevel;
+            document.getElementById('color-item-title').innerText = t.changeColor;
+            document.getElementById('btn-close-shop').innerText = t.close;
+            document.getElementById('shop-label').innerText = t.shop;
+            updateShopButtons();
+        }
+
+        function hideAll() {
+            document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+            document.querySelectorAll('.overlay').forEach(o => o.style.display = 'none');
+        }
+
+        function showMainMenu() {
+            hideAll();
+            document.getElementById('main-menu').style.display = 'flex';
+            updateContinueButton();
+        }
+
+        function openLevelMap() {
+            hideAll();
+            document.getElementById('level-map-screen').style.display = 'flex';
+            renderMap();
+            setTimeout(() => {
+                const target = document.querySelector('.level-node.unlocked') || document.querySelector('.level-node.completed:last-of-type');
+                if(target) target.scrollIntoView({block: 'center', behavior: 'smooth'});
+            }, 100);
+        }
+
+        function roundRect(ctx, x, y, width, height, radius, fill) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            if (fill) ctx.fill();
+            ctx.strokeStyle = "rgba(255,255,255,0.5)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+        function renderMap() {
+            const content = document.getElementById('map-content');
+            const svg = document.getElementById('map-lines');
+            
+            const width = content.offsetWidth || window.innerWidth;
+            const height = content.offsetHeight || (window.innerHeight * 5.5);
+            
+            const nodes = content.querySelectorAll('.level-node');
+            nodes.forEach(n => n.remove());
+            
+            let pathD = "";
+            
+            LEVEL_POSITIONS.forEach((pos, idx) => {
+                const lvlNum = idx + 1;
+                const realX = (pos.x / 100) * width;
+                const realY = (pos.y / 100) * height;
+
+                if(idx === 0) pathD += `M ${realX} ${realY} `;
+                else pathD += `L ${realX} ${realY} `;
+
+                const el = document.createElement('div');
+                el.className = `level-node ${lvlNum <= maxUnlockedLevel ? (lvlNum === maxUnlockedLevel ? 'unlocked' : 'completed') : 'locked'}`;
+                el.style.left = pos.x + '%';
+                el.style.top = pos.y + '%';
+                el.innerText = lvlNum <= maxUnlockedLevel ? lvlNum : '🔒';
+                
+                if(lvlNum <= maxUnlockedLevel) {
+                    el.onclick = () => startGame(lvlNum);
+                }
+                content.appendChild(el);
+            });
+
+            svg.innerHTML = `<path d="${pathD}" stroke="rgba(255,255,255,0.5)" stroke-width="5" fill="none" stroke-dasharray="10,10" />`;
+        }
+
+        function showRecords() {
+            const list = document.getElementById('records-list');
+            list.innerHTML = '';
+            let hasRec = false;
+            for(let i=1; i<=50; i++) {
+                let r = localStorage.getItem(`jellyRecord_${i}`);
+                if(r) {
+                    hasRec = true;
+                    let d = document.createElement('div');
+                    d.className = 'score-row';
+                    d.innerHTML = `<span>Lvl ${i}</span> <span>${r}</span>`;
+                    list.appendChild(d);
+                }
+            }
+            if(!hasRec) list.innerHTML = translations[currentLang].noRec;
+            document.getElementById('records-modal').style.display = 'flex';
+        }
+        function hideRecords() { document.getElementById('records-modal').style.display = 'none'; }
+
+        function startGame(lvl) {
+            level = lvl;
+            targetScore = 100 + (level * 20);
+            score = 0;
+            isGameOver = false;
+            isPaused = false;
+            isCollapsing = false;
+            dropSpeed = 3 + (level * 0.2);
+
+            isWitcherMode = (level >= 11 && level <= 20);
+            isWindyMode = (level >= 21 && level <= 30);
+            isMovingTowerMode = (level >= 31 && level <= 40);
+            isGhostMode = (level >= 41 && level <= 50);
+            
+            currentWitcherChance = isWitcherMode ? 0.2 + ((level-10)*0.02) : 0;
+            currentWitcherSpeedMult = isWitcherMode ? 1.2 + ((level-10)*0.08) : 1;
+            currentWindForce = isWindyMode ? 1.0 + ((level-20)*0.2) : 0;
+            currentTowerSpeed = isMovingTowerMode ? 1.0 + ((level-30)*0.25) : 0;
+            currentGhostFreq = isGhostMode ? 200 - ((level-40)*15) : 200;
+
+            hideAll();
+            document.getElementById('game-wrapper').style.display = 'block';
+            resizeCanvas();
+            updateGameUI();
+            
+            const t = translations[currentLang];
+            let txt = "";
+            if(isWitcherMode) txt = t.modeWitcher;
+            else if(isWindyMode) txt = t.modeWind;
+            else if(isMovingTowerMode) txt = t.modeTower;
+            else if(isGhostMode) txt = t.modeGhost;
+            
+            const alertEl = document.getElementById('mode-alert');
+            if(txt) { alertEl.innerText = txt; alertEl.style.display='block'; setTimeout(()=>alertEl.style.display='none', 2500); } 
+            else { alertEl.style.display='none'; }
+            
+            tower = [];
+            tower.push({ x: (V_WIDTH / 2) - 50, y: V_HEIGHT - 40, w: 100, h: 40, color: '#7f8c8d', isBase: true });
+
+            spawnBlock();
+            if(gameLoopId) cancelAnimationFrame(gameLoopId);
+            gameLoop();
+        }
+
+        function continueLastLevel() {
+            if (maxUnlockedLevel > 0) startGame(maxUnlockedLevel);
+        }
+
+        function updateContinueButton() {
+            const btn = document.getElementById('btn-continue');
+            if(maxUnlockedLevel > 1) {
+                btn.disabled = false; btn.style.opacity = "1";
+            } else { btn.disabled = false; }
+        }
+
+        function updateGoldDisplay() {
+            const display = document.getElementById('total-gold-display');
+            if (display) display.innerText = totalGold;
+            const shopBalance = document.getElementById('shop-balance');
+            if (shopBalance) shopBalance.innerText = totalGold;
+        }
+
+        function spawnBlock() {
+            const randX = Math.random() * (V_WIDTH - 60);
+            let isWitcher = (isWitcherMode && Math.random() < currentWitcherChance);
+            activeBlock = {
+                x: randX, y: -60, w: 60, h: 60,
+                color: isWitcher ? '#2c3e50' : getRandomColor(),
+                isWitcher: isWitcher
+            };
+            if(isWitcher) {
+                const alertEl = document.getElementById('mode-alert');
+                alertEl.innerText = translations[currentLang].witcherDrop;
+                alertEl.style.display = 'block';
+            } else if (!isWindyMode && !isMovingTowerMode && !isGhostMode) {
+                 document.getElementById('mode-alert').style.display = 'none';
+            }
+        }
+
+        // DÜZELTME 3: GameLoop içinde yıkılma fiziği çağrısı eklendi
+        function gameLoop() {
+            if(!isPaused && !isGameOver) { update(); draw(); }
+            if(isCollapsing) { updateCollapse(); draw(); } 
+            if(!isGameOver || isCollapsing) gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            if(!activeBlock) return;
+            let now = Date.now();
+            if(isWindyMode) activeBlock.x += Math.sin(now/1000) * currentWindForce;
+            if(isMovingTowerMode) {
+                 let base = tower[0]; 
+                 if(base.x <= 0 || base.x + base.w >= V_WIDTH) towerDirection *= -1; 
+                 let shift = currentTowerSpeed * towerDirection; 
+                 tower.forEach(b => b.x += shift);
+            }
+            let spd = dropSpeed;
+            if(activeBlock.isWitcher) spd *= currentWitcherSpeedMult;
+            activeBlock.y += spd;
+            let top = tower[tower.length-1];
+            if(activeBlock.y + activeBlock.h >= top.y) {
+                if(activeBlock.x < top.x + top.w && activeBlock.x + activeBlock.w > top.x) {
+                    let overlap = Math.min(activeBlock.x + activeBlock.w, top.x + top.w) - Math.max(activeBlock.x, top.x);
+                    let needed = (level > 20) ? 0.4 : 0.5;
+                    if(overlap > activeBlock.w * needed) {
+                        if(activeBlock.isWitcher) { triggerCollapse(); return; }
+                        activeBlock.y = top.y - activeBlock.h;
+                        tower.push(activeBlock);
+                        score += 10;
+                        updateGameUI();
+                        if(activeBlock.y < 200) tower.forEach(b => b.y += 60);
+                        if(score >= targetScore) { winLevel(); return; }
+                        spawnBlock();
+                    } else { gameOverFunc(); }
+                }
+            }
+            if(activeBlock.y > V_HEIGHT) {
+                if(activeBlock.isWitcher) spawnBlock(); 
+                else gameOverFunc(); 
+            }
+        }
+
+        // DÜZELTME 3: Yıkılma fiziği (blokların dökülmesi)
+        function updateCollapse() {
+            tower.forEach(b => {
+                if(b.isBase) return;
+                b.y += (b.vy || 5); 
+                b.x += (b.vx || 0);
+                b.vy = (b.vy || 5) + 0.5; // Yerçekimi artışı
+            });
+            if(activeBlock) {
+                activeBlock.y += (activeBlock.vy || 5);
+                activeBlock.x += (activeBlock.vx || 0);
+                activeBlock.vy = (activeBlock.vy || 5) + 0.5;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let scale = canvas.width / V_WIDTH;
+            ctx.save(); ctx.scale(scale, scale);
+            tower.forEach(drawBlock);
+            if(activeBlock && !isCollapsing) drawBlock(activeBlock);
+            ctx.restore();
+        }
+
+        // DÜZELTME 2: Yüz ifadeleri (Mutlu, Şaşkın, Üzgün) geri eklendi
+        function drawBlock(b) {
+            if(isGhostMode && b === activeBlock) { 
+                let alpha = 0.5 + 0.8 * Math.sin(Date.now() / currentGhostFreq); 
+                ctx.globalAlpha = Math.max(0, Math.min(1, alpha)); 
+            } else { ctx.globalAlpha = 1; }
+
+            ctx.fillStyle = b.color;
+            roundRect(ctx, b.x, b.y, b.w, b.h, 10, true);
+            
+            if(!b.isBase) {
+                ctx.fillStyle = "#333";
+                // Witcher (Kızgın)
+                if(b.isWitcher) {
+                    ctx.beginPath(); ctx.moveTo(b.x+15, b.y+20); ctx.lineTo(b.x+25, b.y+25); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(b.x+45, b.y+20); ctx.lineTo(b.x+35, b.y+25); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(b.x+18, b.y+25, 4, 0, 6.28); ctx.fill();
+                    ctx.beginPath(); ctx.arc(b.x+42, b.y+25, 4, 0, 6.28); ctx.fill();
+                    return;
+                }
+                
+                // Oyun Bitti (Üzgün)
+                if (isGameOver && !isCollapsing) { // Yıkılma anında ifade değişmesin diye isCollapsing kontrolü opsiyonel
+                    // Çarpı Gözler
+                    ctx.strokeStyle = "#333"; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(b.x+14, b.y+21); ctx.lineTo(b.x+22, b.y+29); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(b.x+22, b.y+21); ctx.lineTo(b.x+14, b.y+29); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(b.x+38, b.y+21); ctx.lineTo(b.x+46, b.y+29); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(b.x+46, b.y+21); ctx.lineTo(b.x+38, b.y+29); ctx.stroke();
+                    // Üzgün Ağız
+                    ctx.beginPath(); ctx.arc(b.x+30, b.y+42, 6, 3.14, 0); ctx.stroke();
+                } 
+                // Düşüyor (Şaşkın)
+                else if (b === activeBlock) {
+                    ctx.beginPath(); ctx.arc(b.x+18, b.y+25, 4, 0, 6.28); ctx.fill();
+                    ctx.beginPath(); ctx.arc(b.x+42, b.y+25, 4, 0, 6.28); ctx.fill();
+                    ctx.beginPath(); ctx.arc(b.x+30, b.y+40, 5, 0, 6.28); ctx.fill(); // O ağız
+                } 
+                // Duruyor (Mutlu)
+                else {
+                    ctx.beginPath(); ctx.arc(b.x+18, b.y+25, 4, 0, 6.28); ctx.fill();
+                    ctx.beginPath(); ctx.arc(b.x+42, b.y+25, 4, 0, 6.28); ctx.fill();
+                    ctx.beginPath(); ctx.arc(b.x+30, b.y+35, 6, 0, 3.14); ctx.fill(); // Gülümseme
+                }
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        // --- INPUT HANDLERS ---
+        canvas.addEventListener('touchstart', handleInputStart, {passive: false});
+        canvas.addEventListener('touchmove', handleInputMove, {passive: false});
+        canvas.addEventListener('touchend', handleInputEnd);
+        canvas.addEventListener('mousedown', handleInputStart);
+        window.addEventListener('mousemove', handleInputMove);
+        window.addEventListener('mouseup', handleInputEnd);
+
+        function handleInputStart(e) {
+            if(isGameOver || isPaused || !activeBlock) return;
+            // DÜZELTME 1: Sadece oyun ekranı açıksa preventDefault yap
+            if(document.getElementById('game-wrapper').style.display === 'block') {
+                if(e.type === 'touchstart') e.preventDefault();
+            }
+            isDragging = true;
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let rect = canvas.getBoundingClientRect();
+            let scale = V_WIDTH / rect.width;
+            dragStartX = (clientX - rect.left) * scale - activeBlock.x;
+        }
+        
+        // DÜZELTME 1: Scroll sorunu çözümü
+        function handleInputMove(e) {
+            // Eğer oyun ekranı GİZLİ ise (yani Haritadaysak) preventDefault yapma, böylece scroll çalışır.
+            if(document.getElementById('game-wrapper').style.display !== 'block') return;
+
+            if(!isDragging || !activeBlock) return;
+            
+            if(e.type === 'touchmove') e.preventDefault();
+            
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let rect = canvas.getBoundingClientRect();
+            let scale = V_WIDTH / rect.width;
+            let newX = ((clientX - rect.left) * scale) - dragStartX;
+            if(newX < 0) newX = 0; if(newX + activeBlock.w > V_WIDTH) newX = V_WIDTH - activeBlock.w;
+            activeBlock.x = newX;
+        }
+        function handleInputEnd() { isDragging = false; }
+
+        function gameOverFunc() {
+            isGameOver = true; isCollapsing = true;
+            document.getElementById('fail-score').innerText = score;
+            // Gecikmeli ekran gösterimi, bloklar dökülsün diye
+            setTimeout(() => document.getElementById('game-over-screen').style.display = 'flex', 1500);
+        }
+
+        function winLevel() {
+            isGameOver = true;
+            if(level === maxUnlockedLevel && level < 50) {
+                maxUnlockedLevel++; saveProgress();
+            }
+            let savedRec = localStorage.getItem(`jellyRecord_${level}`);
+            if(!savedRec || score > parseInt(savedRec)) localStorage.setItem(`jellyRecord_${level}`, score);
+            
+            document.getElementById('win-score').innerText = score;
+            
+            let earned = Math.floor(score / 2); 
+            if(level === maxUnlockedLevel - 1) { 
+                totalGold += earned; saveProgress(); 
+            } else {
+                earned = 10; 
+                totalGold += earned; saveProgress();
+            }
+            
+            const goldEl = document.getElementById('win-gold');
+            if(goldEl) goldEl.innerText = earned;
+
+            document.getElementById('victory-screen').style.display = 'flex';
+        }
+
+        // DÜZELTME 3: Yıkılma tetiklendiğinde bloklara hız vektörü ata
+        function triggerCollapse() {
+            isCollapsing = true; 
+            // GameOver hemen true olmasın, loop devam etsin ki updateCollapse çalışsın
+            tower.forEach(b => {
+                if(b.isBase) return;
+                b.vx = (Math.random() - 0.5) * 15; // Sağa sola fırlama
+                b.vy = -5 - Math.random() * 10;    // Yukarı zıplama
+            });
+            if(activeBlock) {
+                activeBlock.vx = (Math.random() - 0.5) * 15;
+                activeBlock.vy = -5;
+            }
+            // 1.5 saniye sonra ekranı göster
+            setTimeout(gameOverFunc, 100);
+        }
+
+        function restartLevel() { startGame(level); }
+        function nextLevel() { if(level < 50) startGame(level+1); else openLevelMap(); }
+        
+        function togglePause() { isPaused = !isPaused; document.getElementById('pause-screen').style.display = isPaused ? 'flex' : 'none'; }
+        function updateGameUI() { document.getElementById('levelDisplay').innerText = level; document.getElementById('targetDisplay').innerText = targetScore; document.getElementById('score').innerText = score; }
+        
+        function getRandomColor() { 
+            const palette = PALETTES[activePaletteIndex];
+            return palette[Math.floor(Math.random() * palette.length)]; 
+        }
+        
+        function loadProgress() { 
+            const data = localStorage.getItem('jelly_save'); 
+            if(data) { 
+                const p = JSON.parse(data); 
+                maxUnlockedLevel = parseInt(p.maxLevel) || 1; 
+                totalGold = parseInt(p.gold) || 0; 
+            } 
+            activePaletteIndex = parseInt(localStorage.getItem('jelly_palette_index')) || 0; 
+            updateContinueButton(); 
+            updateGoldDisplay();
+        }
+        
+        function saveProgress() { 
+            localStorage.setItem('jelly_save', JSON.stringify({maxLevel: maxUnlockedLevel, gold: totalGold})); 
+            updateGoldDisplay(); 
+        }
+        
+        function openShop() { document.getElementById('shop-modal').style.display = 'flex'; document.getElementById('shop-balance').innerText = totalGold; updateShopButtons(); }
+        function closeShop() { document.getElementById('shop-modal').style.display = 'none'; }
+        
+        function updateShopButtons() {
+            const t = translations[currentLang];
+            const btnSkip = document.getElementById('btn-buy-skip'); const btnColor = document.getElementById('btn-buy-color');
+            btnSkip.disabled = totalGold < 50; btnColor.disabled = totalGold < 50;
+            btnSkip.innerText = t.buy; btnColor.innerText = t.buy;
+        }
+        
+        function watchAd() {
+            const t = translations[currentLang]; document.getElementById('ad-overlay').style.display = 'flex'; document.getElementById('shop-modal').style.display = 'none';
+            let s = 3; const timer = setInterval(() => { s--; document.getElementById('ad-timer').innerText = s; if(s <= 0) { clearInterval(timer); document.getElementById('ad-overlay').style.display = 'none'; document.getElementById('shop-modal').style.display = 'flex'; totalGold += 50; saveProgress(); document.getElementById('shop-balance').innerText = totalGold; document.getElementById('shop-message').innerText = t.shopMsgAd; updateShopButtons(); } }, 1000);
+        }
+        
+        function buySkipLevel() {
+            const t = translations[currentLang];
+            if(totalGold >= 50 && maxUnlockedLevel < 50) { totalGold -= 50; maxUnlockedLevel++; saveProgress(); renderMap(); document.getElementById('shop-balance').innerText = totalGold; document.getElementById('shop-message').innerText = t.shopMsgSkip; updateShopButtons(); } else { document.getElementById('shop-message').innerText = t.shopMsgPoor; }
+        }
+        
+        function buyNewColors() {
+            const t = translations[currentLang];
+            if(totalGold >= 50) { 
+                totalGold -= 50; 
+                activePaletteIndex = (activePaletteIndex + 1) % PALETTES.length; 
+                localStorage.setItem('jelly_palette_index', activePaletteIndex); 
+                saveProgress(); 
+                document.getElementById('shop-balance').innerText = totalGold; 
+                document.getElementById('shop-message').innerText = t.shopMsgColor; 
+                updateShopButtons(); 
+            } else { 
+                document.getElementById('shop-message').innerText = t.shopMsgPoor; 
+            }
+        }
+
+    </script>
+</body>
+</html>
